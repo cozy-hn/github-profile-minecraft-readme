@@ -21,8 +21,7 @@ import type {
 } from './runtime/types.js';
 import { buildCatPopulationPlans } from './cat/planner.js';
 import { buildSheepPopulationPlans } from './sheep/planner.js';
-import { toCellKey, findGrassIslands } from './sheep/islands.js';
-import { ISLAND_DIRECTIONS } from './sheep/constants.js';
+import { findGrassIslands, buildExclusionZone } from './sheep/islands.js';
 
 const escapeHtml = (text: string): string =>
     text
@@ -298,7 +297,7 @@ const buildSceneData = (
 
     // Build exclusion zone: cat route cells + adaptive buffer.
     const excludedCells = new Map<number, Set<string>>();
-    for (const plan of catPlans) {
+    if (catPlans.length > 0) {
         const grassCells = calendarMetrics.map((m) => ({
             contributionLevel: m.contributionLevel,
             week: m.week,
@@ -306,31 +305,12 @@ const buildSceneData = (
             worldHeight: m.worldHeight,
         }));
         const islands = findGrassIslands(grassCells);
-        const catIsland = islands.find((i) => i.id === plan.islandId);
-        const islandSize = catIsland?.cells.length ?? 0;
-        const bufferRadius = islandSize >= 150 ? 2 : 1;
-
-        const excluded = new Set<string>();
-        for (const cell of plan.route) {
-            excluded.add(toCellKey(cell));
+        for (const plan of catPlans) {
+            const catIsland = islands.find((i) => i.id === plan.islandId);
+            const islandSize = catIsland?.cells.length ?? 0;
+            const bufferRadius = islandSize >= 150 ? 2 : 1;
+            excludedCells.set(plan.islandId, buildExclusionZone(plan.route, bufferRadius));
         }
-        // Expand buffer ring by ring
-        let frontier = new Set(excluded);
-        for (let ring = 0; ring < bufferRadius; ring++) {
-            const nextFrontier = new Set<string>();
-            for (const key of frontier) {
-                const [w, d] = key.split(',').map(Number);
-                for (const [dw, dd] of ISLAND_DIRECTIONS) {
-                    const nk = `${w + dw},${d + dd}`;
-                    if (!excluded.has(nk)) {
-                        excluded.add(nk);
-                        nextFrontier.add(nk);
-                    }
-                }
-            }
-            frontier = nextFrontier;
-        }
-        excludedCells.set(plan.islandId, excluded);
     }
 
     const sheepPlans = config.showSheep

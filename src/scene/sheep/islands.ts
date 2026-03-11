@@ -259,3 +259,29 @@ export const findGrassIslands = (
 
     return islands;
 };
+
+export const buildExclusionZone = (
+    route: ReadonlyArray<Pick<GrassWorldCell, 'week' | 'dayOfWeek'>>,
+    bufferRadius: number,
+): Set<string> => {
+    const excluded = new Set<string>();
+    for (const cell of route) {
+        excluded.add(toCellKey(cell));
+    }
+    let frontier = new Set(excluded);
+    for (let ring = 0; ring < bufferRadius; ring++) {
+        const nextFrontier = new Set<string>();
+        for (const key of frontier) {
+            const [w, d] = key.split(',').map(Number);
+            for (const [dw, dd] of ISLAND_DIRECTIONS) {
+                const nk = `${w + dw},${d + dd}`;
+                if (!excluded.has(nk)) {
+                    excluded.add(nk);
+                    nextFrontier.add(nk);
+                }
+            }
+        }
+        frontier = nextFrontier;
+    }
+    return excluded;
+};

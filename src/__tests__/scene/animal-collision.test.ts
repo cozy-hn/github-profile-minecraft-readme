@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { buildCatPopulationPlans } from '../../scene/cat/planner.js';
 import { buildSheepPopulationPlans } from '../../scene/sheep/planner.js';
-import { toCellKey } from '../../scene/sheep/islands.js';
-import { ISLAND_DIRECTIONS } from '../../scene/sheep/constants.js';
-import type { CalendarMetric, GrassWorldCell } from '../../types.js';
+import { toCellKey, buildExclusionZone } from '../../scene/sheep/islands.js';
+import type { CalendarMetric } from '../../types.js';
 
 const makeCell = (
     week: number,
@@ -19,32 +18,6 @@ const makeCell = (
     worldHeight,
 });
 
-/** Build the exclusion set (route cells + 1-cell buffer) for a cat plan. */
-const buildExclusionSet = (
-    route: ReadonlyArray<GrassWorldCell>,
-    bufferRadius = 1,
-): Set<string> => {
-    const excluded = new Set<string>();
-    for (const cell of route) {
-        excluded.add(toCellKey(cell));
-    }
-    let frontier = new Set(excluded);
-    for (let ring = 0; ring < bufferRadius; ring++) {
-        const nextFrontier = new Set<string>();
-        for (const key of frontier) {
-            const [w, d] = key.split(',').map(Number);
-            for (const [dw, dd] of ISLAND_DIRECTIONS) {
-                const nk = `${w + dw},${d + dd}`;
-                if (!excluded.has(nk)) {
-                    excluded.add(nk);
-                    nextFrontier.add(nk);
-                }
-            }
-        }
-        frontier = nextFrontier;
-    }
-    return excluded;
-};
 
 describe('animal collision avoidance', () => {
     it('cat and sheep routes have zero cell overlap on shared island', () => {
@@ -60,7 +33,7 @@ describe('animal collision avoidance', () => {
         expect(catPlans.length).toBeGreaterThan(0);
 
         const catPlan = catPlans[0];
-        const excluded = buildExclusionSet(catPlan.route, 1);
+        const excluded = buildExclusionZone(catPlan.route, 1);
         const excludedMap = new Map<number, Set<string>>([
             [catPlan.islandId, excluded],
         ]);
@@ -88,7 +61,7 @@ describe('animal collision avoidance', () => {
 
         const catPlans = buildCatPopulationPlans(cells, 8);
         const catPlan = catPlans[0];
-        const excluded = buildExclusionSet(catPlan.route, 1);
+        const excluded = buildExclusionZone(catPlan.route, 1);
         const excludedMap = new Map<number, Set<string>>([
             [catPlan.islandId, excluded],
         ]);
@@ -110,7 +83,7 @@ describe('animal collision avoidance', () => {
             return;
         }
         const catPlan = catPlans[0];
-        const excluded = buildExclusionSet(catPlan.route, 1);
+        const excluded = buildExclusionZone(catPlan.route, 1);
         const excludedMap = new Map<number, Set<string>>([
             [catPlan.islandId, excluded],
         ]);
@@ -141,7 +114,7 @@ describe('animal collision avoidance', () => {
         const catPlans = buildCatPopulationPlans(cells, 8);
         expect(catPlans.length).toBeGreaterThan(0);
         const catPlan = catPlans[0];
-        const excluded = buildExclusionSet(catPlan.route, 1);
+        const excluded = buildExclusionZone(catPlan.route, 1);
         const excludedMap = new Map<number, Set<string>>([
             [catPlan.islandId, excluded],
         ]);
