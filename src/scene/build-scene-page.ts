@@ -21,6 +21,8 @@ import type {
 } from './runtime/types.js';
 import { buildCatPopulationPlans } from './cat/planner.js';
 import { buildSheepPopulationPlans } from './sheep/planner.js';
+import { toCellKey, findGrassIslands } from './sheep/islands.js';
+import { ISLAND_DIRECTIONS } from './sheep/constants.js';
 
 const escapeHtml = (text: string): string =>
     text
@@ -291,6 +293,50 @@ const buildSceneData = (
         calendarMetrics[calendarMetrics.length - 1].date
     }`;
 
+    // Plan cat first so its route can be excluded from sheep territory.
+    const catPlans = buildCatPopulationPlans(calendarMetrics, config.gif.durationSec);
+
+    // Build exclusion zone: cat route cells + adaptive buffer.
+    const excludedCells = new Map<number, Set<string>>();
+    for (const plan of catPlans) {
+        const grassCells = calendarMetrics.map((m) => ({
+            contributionLevel: m.contributionLevel,
+            week: m.week,
+            dayOfWeek: m.dayOfWeek,
+            worldHeight: m.worldHeight,
+        }));
+        const islands = findGrassIslands(grassCells);
+        const catIsland = islands.find((i) => i.id === plan.islandId);
+        const islandSize = catIsland?.cells.length ?? 0;
+        const bufferRadius = islandSize >= 150 ? 2 : 1;
+
+        const excluded = new Set<string>();
+        for (const cell of plan.route) {
+            excluded.add(toCellKey(cell));
+        }
+        // Expand buffer ring by ring
+        let frontier = new Set(excluded);
+        for (let ring = 0; ring < bufferRadius; ring++) {
+            const nextFrontier = new Set<string>();
+            for (const key of frontier) {
+                const [w, d] = key.split(',').map(Number);
+                for (const [dw, dd] of ISLAND_DIRECTIONS) {
+                    const nk = `${w + dw},${d + dd}`;
+                    if (!excluded.has(nk)) {
+                        excluded.add(nk);
+                        nextFrontier.add(nk);
+                    }
+                }
+            }
+            frontier = nextFrontier;
+        }
+        excludedCells.set(plan.islandId, excluded);
+    }
+
+    const sheepPlans = config.showSheep
+        ? buildSheepPopulationPlans(calendarMetrics, config.gif.durationSec, excludedCells)
+        : [];
+
     return {
         username: userSnapshot.username,
         totalContributions: userSnapshot.totalContributions,
@@ -301,10 +347,8 @@ const buildSceneData = (
         sheepTargetHeight: SHEEP_TARGET_HEIGHT_BLOCKS,
         calendarMetrics,
         monthGuideEntries,
-        sheepPlans: config.showSheep
-            ? buildSheepPopulationPlans(calendarMetrics, config.gif.durationSec)
-            : [],
-        catPlans: buildCatPopulationPlans(calendarMetrics, config.gif.durationSec),
+        sheepPlans,
+        catPlans,
         showCat: true,
         catTargetHeight: CAT_TARGET_HEIGHT_BLOCKS,
         blossomCoverStops: KOREAN_BLOSSOM_COVER_STOPS,
