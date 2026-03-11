@@ -40,10 +40,17 @@ const toDayOfYear = (year: number, month: number, day: number): number => {
     return monthOffsets[month - 1] + day + leapOffset;
 };
 
-const getInterpolatedSeasonalAmount = (
+interface SeasonalBracket<T> {
+    t: number;
+    leftValue: T;
+    rightValue: T;
+}
+
+const findSeasonalBracket = <S extends { month: number; day: number }, T>(
     isoDate: string,
-    stops: ReadonlyArray<SeasonalAmountStop>,
-): number => {
+    stops: ReadonlyArray<S>,
+    getValue: (stop: S) => T,
+): SeasonalBracket<T> => {
     const [yearText, monthText, dayText] = isoDate.split('-');
     const year = Number(yearText);
     const month = Number(monthText);
@@ -53,18 +60,18 @@ const getInterpolatedSeasonalAmount = (
     const yearlyStops = stops
         .map((stop) => ({
             day: toDayOfYear(year, stop.month, stop.day),
-            amount: stop.amount,
+            value: getValue(stop),
         }))
         .sort((left, right) => left.day - right.day);
     const extendedStops = [
         {
             day: yearlyStops[yearlyStops.length - 1].day - daysInYear,
-            amount: yearlyStops[yearlyStops.length - 1].amount,
+            value: yearlyStops[yearlyStops.length - 1].value,
         },
         ...yearlyStops,
         {
             day: yearlyStops[0].day + daysInYear,
-            amount: yearlyStops[0].amount,
+            value: yearlyStops[0].value,
         },
     ];
 
@@ -82,7 +89,19 @@ const getInterpolatedSeasonalAmount = (
 
     const range = Math.max(1, rightStop.day - leftStop.day);
     const t = Math.max(0, Math.min(1, (dayOfYear - leftStop.day) / range));
-    return leftStop.amount + (rightStop.amount - leftStop.amount) * t;
+    return { t, leftValue: leftStop.value, rightValue: rightStop.value };
+};
+
+const getInterpolatedSeasonalAmount = (
+    isoDate: string,
+    stops: ReadonlyArray<SeasonalAmountStop>,
+): number => {
+    const { t, leftValue, rightValue } = findSeasonalBracket(
+        isoDate,
+        stops,
+        (stop) => stop.amount,
+    );
+    return leftValue + (rightValue - leftValue) * t;
 };
 
 const getSeasonalGrassTint = (
@@ -90,48 +109,12 @@ const getSeasonalGrassTint = (
     isoDate: string,
     contributionLevel: number,
 ): string => {
-    const [yearText, monthText, dayText] = isoDate.split('-');
-    const year = Number(yearText);
-    const month = Number(monthText);
-    const day = Number(dayText);
-    const dayOfYear = toDayOfYear(year, month, day);
-    const daysInYear = isLeapYear(year) ? 366 : 365;
-    const yearlyStops = sceneData.seasonalGrassStops
-        .map((stop) => ({
-            day: toDayOfYear(year, stop.month, stop.day),
-            color: stop.color,
-        }))
-        .sort((left, right) => left.day - right.day);
-    const extendedStops = [
-        {
-            day: yearlyStops[yearlyStops.length - 1].day - daysInYear,
-            color: yearlyStops[yearlyStops.length - 1].color,
-        },
-        ...yearlyStops,
-        {
-            day: yearlyStops[0].day + daysInYear,
-            color: yearlyStops[0].color,
-        },
-    ];
-
-    let leftStop = extendedStops[0];
-    let rightStop = extendedStops[1];
-    for (let index = 0; index < extendedStops.length - 1; index += 1) {
-        const left = extendedStops[index];
-        const right = extendedStops[index + 1];
-        if (dayOfYear >= left.day && dayOfYear < right.day) {
-            leftStop = left;
-            rightStop = right;
-            break;
-        }
-    }
-
-    const range = Math.max(1, rightStop.day - leftStop.day);
-    const seasonalColor = mixHexColors(
-        leftStop.color,
-        rightStop.color,
-        (dayOfYear - leftStop.day) / range,
+    const { t, leftValue, rightValue } = findSeasonalBracket(
+        isoDate,
+        sceneData.seasonalGrassStops,
+        (stop) => stop.color,
     );
+    const seasonalColor = mixHexColors(leftValue, rightValue, t);
     const contributionLift = [0, 0.015, 0.035, 0.06, 0.09][contributionLevel] ?? 0;
     return liftHex(seasonalColor, contributionLift);
 };
