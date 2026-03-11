@@ -2,6 +2,8 @@ name: Render Profile Assets
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   schedule:
     - cron: "0 0 * * *"
 
