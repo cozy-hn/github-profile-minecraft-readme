@@ -10,9 +10,61 @@ import { findGrassIslands, toCellKey } from '../sheep/islands.js';
 import { ISLAND_DIRECTIONS } from '../sheep/constants.js';
 
 /**
- * Build a circular route for the cat: go out, loop around, return to start.
- * Uses BFS to find a path from start, then greedily walks back toward start
- * to form a closed loop. Total cells ≈ maxCells.
+ * Find the shortest path between two cells on the island via BFS.
+ * Returns the path EXCLUDING `from` but INCLUDING `to`, or null if unreachable.
+ */
+const bfsPath = (
+    cellMap: Map<string, GrassWorldCell>,
+    from: GrassWorldCell,
+    to: GrassWorldCell,
+): Array<GrassWorldCell> | null => {
+    const fromKey = toCellKey(from);
+    const toKey = toCellKey(to);
+    if (fromKey === toKey) return [];
+
+    const queue: Array<GrassWorldCell> = [from];
+    const cameFrom = new Map<string, GrassWorldCell>();
+    const seen = new Set<string>([fromKey]);
+
+    let found = false;
+    while (queue.length > 0) {
+        const cur = queue.shift()!;
+        for (const [dw, dd] of ISLAND_DIRECTIONS) {
+            const nKey = `${cur.week + dw},${cur.dayOfWeek + dd}`;
+            if (nKey === toKey) {
+                cameFrom.set(nKey, cur);
+                found = true;
+                break;
+            }
+            const neighbor = cellMap.get(nKey);
+            if (neighbor && !seen.has(nKey)) {
+                seen.add(nKey);
+                cameFrom.set(nKey, cur);
+                queue.push(neighbor);
+            }
+        }
+        if (found) break;
+    }
+
+    if (!found) return null;
+
+    // Reconstruct path from `to` back to `from`
+    const path: Array<GrassWorldCell> = [];
+    let cur: GrassWorldCell | undefined = to;
+    while (cur && toCellKey(cur) !== fromKey) {
+        path.push(cur);
+        cur = cameFrom.get(toCellKey(cur));
+    }
+    path.reverse();
+    return path;
+};
+
+/**
+ * Build a circular route for the cat that forms a true loop.
+ *
+ * Strategy: walk outward for ~half the budget, then BFS the shortest return
+ * path back to start through the island grid (allowing revisits).
+ * Every consecutive pair of cells is axis-adjacent — no diagonal jumps.
  */
 const buildCircularRoute = (
     islandCells: ReadonlyArray<GrassWorldCell>,
@@ -25,17 +77,22 @@ const buildCircularRoute = (
     const cellMap = new Map(islandCells.map((c) => [toCellKey(c), c]));
     const halfMax = Math.floor(maxCells / 2);
 
-    // Phase 1: Walk outward from start for ~half the budget
+    // Phase 1: Walk outward from start for ~half the budget.
+    // Prefer turning (perpendicular directions) over going straight so the
+    // outward leg sweeps across the island instead of marching in a line.
+    // This gives the BFS return path a different route back, forming a loop.
     const outPath = [startCell];
     const visited = new Set<string>([toCellKey(startCell)]);
     let current = startCell;
     let dirIdx = directionOffset % ISLAND_DIRECTIONS.length;
 
+    // Direction priority: right turn, left turn, straight, reverse
+    const turnOrder = [1, 3, 0, 2];
+
     for (let step = 0; step < halfMax; step++) {
-        // Try directions in rotated order, prefer continuing forward
         let found = false;
-        for (let d = 0; d < ISLAND_DIRECTIONS.length; d++) {
-            const di = (dirIdx + d) % ISLAND_DIRECTIONS.length;
+        for (const offset of turnOrder) {
+            const di = (dirIdx + offset) % ISLAND_DIRECTIONS.length;
             const [dw, dd] = ISLAND_DIRECTIONS[di];
             const key = `${current.week + dw},${current.dayOfWeek + dd}`;
             const next = cellMap.get(key);
@@ -51,47 +108,15 @@ const buildCircularRoute = (
         if (!found) break;
     }
 
-    // Phase 2: Walk back toward start, using remaining budget
-    const returnBudget = maxCells - outPath.length;
-    const returnPath: Array<GrassWorldCell> = [];
-    const startKey = toCellKey(startCell);
-
-    for (let step = 0; step < returnBudget; step++) {
-        // Check if we can reach start directly
-        for (const [dw, dd] of ISLAND_DIRECTIONS) {
-            const key = `${current.week + dw},${current.dayOfWeek + dd}`;
-            if (key === startKey) {
-                // Can reach start — close the loop
-                return [...outPath, ...returnPath, startCell];
-            }
-        }
-
-        // Greedily pick the unvisited neighbor closest to start
-        let bestCell: GrassWorldCell | null = null;
-        let bestDist = Infinity;
-        for (const [dw, dd] of ISLAND_DIRECTIONS) {
-            const key = `${current.week + dw},${current.dayOfWeek + dd}`;
-            const next = cellMap.get(key);
-            if (next && !visited.has(key)) {
-                const dist = Math.hypot(
-                    next.week - startCell.week,
-                    next.dayOfWeek - startCell.dayOfWeek,
-                );
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestCell = next;
-                }
-            }
-        }
-
-        if (!bestCell) break;
-        visited.add(toCellKey(bestCell));
-        returnPath.push(bestCell);
-        current = bestCell;
+    // Phase 2: BFS shortest return path from current back to start
+    // (through the full island, revisits allowed so we always find a path)
+    const returnSegment = bfsPath(cellMap, current, startCell);
+    if (returnSegment && returnSegment.length > 0) {
+        return [...outPath, ...returnSegment];
     }
 
-    // Close the loop — add start at the end
-    return [...outPath, ...returnPath, startCell];
+    // Fallback: single-cell island or disconnected — just stay put
+    return [startCell];
 };
 
 const CAT_WALK_SPEED = 1.8;
