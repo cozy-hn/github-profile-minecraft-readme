@@ -43,7 +43,6 @@ describe('sample render pipeline integration', () => {
         expect(payload.sceneData.seasonalGrassStops).toBeDefined();
         expect(payload.sceneData.springFlowerCoverStops).toBeDefined();
         expect(payload.sceneData.summerFlowerCoverStops).toBeDefined();
-        expect(payload.sceneData.summerWaterCoverStops).toBeDefined();
         expect(payload.sceneData.leafLitterCoverStops).toBeDefined();
     });
 

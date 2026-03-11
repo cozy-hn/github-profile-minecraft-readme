@@ -7,7 +7,6 @@ import {
     KOREAN_SEASONAL_GRASS_STOPS,
     KOREAN_SNOW_COVER_STOPS,
     KOREAN_SUMMER_FLOWER_COVER_STOPS,
-    KOREAN_SUMMER_WATER_COVER_STOPS,
 } from './minecraft-grass-theme.js';
 import {
     SCENE_BOOTSTRAP_SCRIPT_ID,
@@ -308,7 +307,6 @@ const buildSceneData = (
         seasonalGrassStops: KOREAN_SEASONAL_GRASS_STOPS,
         snowCoverStops: KOREAN_SNOW_COVER_STOPS,
         summerFlowerCoverStops: KOREAN_SUMMER_FLOWER_COVER_STOPS,
-        summerWaterCoverStops: KOREAN_SUMMER_WATER_COVER_STOPS,
     };
 };
 

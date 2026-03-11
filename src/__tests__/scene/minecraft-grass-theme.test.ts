@@ -6,7 +6,6 @@ import {
     KOREAN_SPRING_FLOWER_COVER_STOPS,
     KOREAN_LEAF_LITTER_COVER_STOPS,
     KOREAN_SUMMER_FLOWER_COVER_STOPS,
-    KOREAN_SUMMER_WATER_COVER_STOPS,
 } from '../../scene/minecraft-grass-theme.js';
 
 describe('seasonal grass stops', () => {
@@ -53,7 +52,6 @@ const allOverlayStops = [
     { name: 'spring flowers', stops: KOREAN_SPRING_FLOWER_COVER_STOPS, expectedLength: 6 },
     { name: 'leaf litter', stops: KOREAN_LEAF_LITTER_COVER_STOPS, expectedLength: 7 },
     { name: 'summer flowers', stops: KOREAN_SUMMER_FLOWER_COVER_STOPS, expectedLength: 7 },
-    { name: 'summer water', stops: KOREAN_SUMMER_WATER_COVER_STOPS, expectedLength: 7 },
 ];
 
 describe.each(allOverlayStops)('$name cover stops', ({ stops, expectedLength }) => {

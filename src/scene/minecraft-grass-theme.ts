@@ -78,12 +78,3 @@ export const KOREAN_SUMMER_FLOWER_COVER_STOPS: ReadonlyArray<SeasonalGroundOverl
     { month: 9, day: 20, amount: 0 },
 ] as const;
 
-export const KOREAN_SUMMER_WATER_COVER_STOPS: ReadonlyArray<SeasonalGroundOverlayStop> = [
-    { month: 5, day: 25, amount: 0 },
-    { month: 6, day: 12, amount: 0.14 },
-    { month: 7, day: 5, amount: 0.26 },
-    { month: 7, day: 30, amount: 0.4 },
-    { month: 8, day: 18, amount: 0.3 },
-    { month: 9, day: 1, amount: 0.12 },
-    { month: 9, day: 15, amount: 0 },
-] as const;

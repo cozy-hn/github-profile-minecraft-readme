@@ -40,7 +40,6 @@ export interface SceneData {
     seasonalGrassStops: ReadonlyArray<SeasonalColorStop>;
     snowCoverStops: ReadonlyArray<SeasonalAmountStop>;
     summerFlowerCoverStops: ReadonlyArray<SeasonalAmountStop>;
-    summerWaterCoverStops: ReadonlyArray<SeasonalAmountStop>;
 }
 
 export interface SceneAssetUrls {
