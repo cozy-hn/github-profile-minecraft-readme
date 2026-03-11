@@ -21,6 +21,7 @@ import {
     partitionIslandCells,
     chooseWalkPath,
     clamp,
+    toCellKey,
 } from './islands.js';
 
 const buildRouteProgressStops = (route: Array<GrassWorldCell>): Array<number> => {
@@ -279,18 +280,23 @@ export { findGrassIslands } from './islands.js';
 export const buildSheepPopulationPlans = (
     cells: Array<GrassWorldCell>,
     loopDurationSec: number,
+    excludedCells?: Map<number, Set<string>>,
 ): Array<SheepSpawnPlan> => {
     const maxRouteDistance =
         SHEEP_WALK_SPEED_BLOCKS_PER_SEC *
         Math.max(0.5, loopDurationSec - MIN_LOOP_PAUSE_SEC);
     const sheepSlots = findGrassIslands(cells).flatMap((island) => {
-        const sheepCount = Math.min(MAX_SHEEP_PER_ISLAND, Math.floor(island.cells.length / CELLS_PER_SHEEP));
+        const excluded = excludedCells?.get(island.id);
+        const availableCells = excluded
+            ? island.cells.filter((c) => !excluded.has(toCellKey(c)))
+            : island.cells;
+        const sheepCount = Math.min(MAX_SHEEP_PER_ISLAND, Math.floor(availableCells.length / CELLS_PER_SHEEP));
         if (sheepCount <= 0) {
             return [];
         }
 
-        const spawnCells = selectSpawnCells(island.cells, sheepCount);
-        const territories = partitionIslandCells(island.cells, spawnCells);
+        const spawnCells = selectSpawnCells(availableCells, sheepCount);
+        const territories = partitionIslandCells(availableCells, spawnCells);
 
         return spawnCells.map((startCell, sheepIndex) => ({
             islandId: island.id,

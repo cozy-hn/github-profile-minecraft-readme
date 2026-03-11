@@ -21,6 +21,7 @@ import type {
 } from './runtime/types.js';
 import { buildCatPopulationPlans } from './cat/planner.js';
 import { buildSheepPopulationPlans } from './sheep/planner.js';
+import { findGrassIslands, buildExclusionZone } from './sheep/islands.js';
 
 const escapeHtml = (text: string): string =>
     text
@@ -291,6 +292,31 @@ const buildSceneData = (
         calendarMetrics[calendarMetrics.length - 1].date
     }`;
 
+    // Plan cat first so its route can be excluded from sheep territory.
+    const catPlans = buildCatPopulationPlans(calendarMetrics, config.gif.durationSec);
+
+    // Build exclusion zone: cat route cells + adaptive buffer.
+    const excludedCells = new Map<number, Set<string>>();
+    if (catPlans.length > 0) {
+        const grassCells = calendarMetrics.map((m) => ({
+            contributionLevel: m.contributionLevel,
+            week: m.week,
+            dayOfWeek: m.dayOfWeek,
+            worldHeight: m.worldHeight,
+        }));
+        const islands = findGrassIslands(grassCells);
+        for (const plan of catPlans) {
+            const catIsland = islands.find((i) => i.id === plan.islandId);
+            const islandSize = catIsland?.cells.length ?? 0;
+            const bufferRadius = islandSize >= 150 ? 2 : 1;
+            excludedCells.set(plan.islandId, buildExclusionZone(plan.route, bufferRadius));
+        }
+    }
+
+    const sheepPlans = config.showSheep
+        ? buildSheepPopulationPlans(calendarMetrics, config.gif.durationSec, excludedCells)
+        : [];
+
     return {
         username: userSnapshot.username,
         totalContributions: userSnapshot.totalContributions,
@@ -301,10 +327,8 @@ const buildSceneData = (
         sheepTargetHeight: SHEEP_TARGET_HEIGHT_BLOCKS,
         calendarMetrics,
         monthGuideEntries,
-        sheepPlans: config.showSheep
-            ? buildSheepPopulationPlans(calendarMetrics, config.gif.durationSec)
-            : [],
-        catPlans: buildCatPopulationPlans(calendarMetrics, config.gif.durationSec),
+        sheepPlans,
+        catPlans,
         showCat: true,
         catTargetHeight: CAT_TARGET_HEIGHT_BLOCKS,
         blossomCoverStops: KOREAN_BLOSSOM_COVER_STOPS,
