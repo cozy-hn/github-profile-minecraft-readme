@@ -18,27 +18,45 @@ const bfsPath = (
     from: GrassWorldCell,
     to: GrassWorldCell,
 ): Array<GrassWorldCell> | null => {
+    const fromKey = toCellKey(from);
     const toKey = toCellKey(to);
-    if (toCellKey(from) === toKey) return [];
+    if (fromKey === toKey) return [];
 
-    const queue: Array<{ cell: GrassWorldCell; path: Array<GrassWorldCell> }> = [
-        { cell: from, path: [] },
-    ];
-    const seen = new Set<string>([toCellKey(from)]);
+    const queue: Array<GrassWorldCell> = [from];
+    const cameFrom = new Map<string, GrassWorldCell>();
+    const seen = new Set<string>([fromKey]);
 
+    let found = false;
     while (queue.length > 0) {
-        const { cell: cur, path } = queue.shift()!;
+        const cur = queue.shift()!;
         for (const [dw, dd] of ISLAND_DIRECTIONS) {
             const nKey = `${cur.week + dw},${cur.dayOfWeek + dd}`;
-            if (nKey === toKey) return [...path, to];
+            if (nKey === toKey) {
+                cameFrom.set(nKey, cur);
+                found = true;
+                break;
+            }
             const neighbor = cellMap.get(nKey);
             if (neighbor && !seen.has(nKey)) {
                 seen.add(nKey);
-                queue.push({ cell: neighbor, path: [...path, neighbor] });
+                cameFrom.set(nKey, cur);
+                queue.push(neighbor);
             }
         }
+        if (found) break;
     }
-    return null;
+
+    if (!found) return null;
+
+    // Reconstruct path from `to` back to `from`
+    const path: Array<GrassWorldCell> = [];
+    let cur: GrassWorldCell | undefined = to;
+    while (cur && toCellKey(cur) !== fromKey) {
+        path.push(cur);
+        cur = cameFrom.get(toCellKey(cur));
+    }
+    path.reverse();
+    return path;
 };
 
 /**
@@ -68,7 +86,7 @@ const buildCircularRoute = (
     let current = startCell;
     let dirIdx = directionOffset % ISLAND_DIRECTIONS.length;
 
-    // Direction priority: left turn, right turn, straight, reverse
+    // Direction priority: right turn, left turn, straight, reverse
     const turnOrder = [1, 3, 0, 2];
 
     for (let step = 0; step < halfMax; step++) {
