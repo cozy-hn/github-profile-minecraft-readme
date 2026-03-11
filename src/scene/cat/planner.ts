@@ -75,21 +75,19 @@ const buildCircularRoute = (
     if (islandCells.length <= 1) return [startCell];
 
     const cellMap = new Map(islandCells.map((c) => [toCellKey(c), c]));
-    const halfMax = Math.floor(maxCells / 2);
 
-    // Phase 1: Walk outward from start for ~half the budget.
-    // Prefer turning (perpendicular directions) over going straight so the
-    // outward leg sweeps across the island instead of marching in a line.
-    // This gives the BFS return path a different route back, forming a loop.
+    // Phase 1: Walk outward for half the budget, reserving the other half
+    // for the BFS return path so the total route stays within maxCells.
+    const outBudget = Math.floor(maxCells / 2);
     const outPath = [startCell];
     const visited = new Set<string>([toCellKey(startCell)]);
     let current = startCell;
     let dirIdx = directionOffset % ISLAND_DIRECTIONS.length;
 
-    // Direction priority: right turn, left turn, straight, reverse
-    const turnOrder = [1, 3, 0, 2];
+    // Direction priority: straight, right turn, left turn, reverse
+    const turnOrder = [0, 1, 3, 2];
 
-    for (let step = 0; step < halfMax; step++) {
+    for (let step = 0; step < outBudget; step++) {
         let found = false;
         for (const offset of turnOrder) {
             const di = (dirIdx + offset) % ISLAND_DIRECTIONS.length;
@@ -295,7 +293,10 @@ export const buildCatPopulationPlans = (
         return [];
     }
 
-    // Pick a spawn cell deterministically via hashString, biased toward edges
+    // Pick a spawn cell deterministically via hashString.
+    // Prefer cells with many grass neighbors (all 4 directions open) and
+    // close to the island center, so the cat can roam freely.
+    const islandKeySet = new Set(island.cells.map((c) => toCellKey(c)));
     const sortedCells = [...island.cells].sort(
         (a, b) => a.week - b.week || a.dayOfWeek - b.dayOfWeek,
     );
@@ -304,12 +305,16 @@ export const buildCatPopulationPlans = (
     const avgDay =
         sortedCells.reduce((sum, c) => sum + c.dayOfWeek, 0) / sortedCells.length;
 
-    const scored = sortedCells.map((cell, index) => ({
-        cell,
-        index,
-        distFromCenter: Math.hypot(cell.week - avgWeek, cell.dayOfWeek - avgDay),
-    }));
-    scored.sort((a, b) => b.distFromCenter - a.distFromCenter);
+    const scored = sortedCells.map((cell, index) => {
+        const neighborCount = ISLAND_DIRECTIONS.filter(([dw, dd]) =>
+            islandKeySet.has(`${cell.week + dw},${cell.dayOfWeek + dd}`),
+        ).length;
+        const distFromCenter = Math.hypot(cell.week - avgWeek, cell.dayOfWeek - avgDay);
+        // Higher score = better spawn: prioritize neighbors, then closeness to center
+        const score = neighborCount * 100 - distFromCenter;
+        return { cell, index, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
 
     const topQuarterCount = Math.max(1, Math.floor(scored.length / 4));
     const topCandidates = scored.slice(0, topQuarterCount);
